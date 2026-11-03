@@ -2,10 +2,11 @@
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-$host = 'database';
-$db = 'lab_db';
-$user = 'lab_user';
-$pass = 'userpassword456';
+// Credentials come from the container environment (.env via docker-compose), never from code
+$host = getenv('DB_HOST') ?: 'database';
+$db   = getenv('DB_NAME') ?: 'lab_db';
+$user = getenv('DB_USER') ?: 'lab_user';
+$pass = getenv('DB_PASSWORD') ?: '';
 $charset = 'utf8mb4';
 $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
 
@@ -15,11 +16,8 @@ try {
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     ]);
 } catch (\PDOException $e) {
-    die("Database Connection Fail: " . $e->getMessage());
+    error_log("Database connection failed: " . $e->getMessage());
+    die("Service temporarily unavailable. Please try again shortly.");
 }
-   try {
-       $pdo->exec("ALTER TABLE users ADD COLUMN TotpSecret VARCHAR(32) NULL;");
-   } catch (\PDOException $e) {
-       if ($e->errorInfo[1] !== 1060) die("Database error: " . $e->getMessage());
-   }
+// Schema setup now lives in db/init.sql, so the old runtime ALTER TABLE is removed
 ?>
