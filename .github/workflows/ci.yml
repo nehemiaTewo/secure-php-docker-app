@@ -1,0 +1,69 @@
+name: Lab4 CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v4
+
+      - name: PHP syntax check
+        run: |
+          for f in www/*.php; do php -l "$f"; done
+
+      - name: Create CI .env (real one is never committed)
+        run: |
+          cat > .env <<'EOF'
+          MYSQL_ROOT_PASSWORD=ci_root_pw
+          MYSQL_DATABASE=lab_db
+          MYSQL_USER=lab_user
+          MYSQL_PASSWORD=userpassword456
+          SMTP_HOST=localhost
+          SMTP_PORT=2525
+          SMTP_USER=
+          SMTP_PASSWORD=
+          EOF
+
+      - name: Start the stack
+        run: docker compose up -d --build
+
+      - name: Wait for MySQL to finish running init.sql
+        run: |
+          for i in $(seq 1 40); do
+            docker compose exec -T database mysqladmin ping -h 127.0.0.1 -uroot -pci_root_pw --silent && exit 0
+            sleep 3
+          done
+          exit 1
+
+      - name: Database was built from init.sql (Role column exists)
+        run: docker compose exec -T database mysql -ulab_user -puserpassword456 lab_db -e "DESCRIBE users;" | grep Role
+
+      - name: Login page loads
+        run: curl -sf http://localhost:8080/login.php | grep -q "Account Sign-In Terminal"
+
+      - name: Guests are redirected away from admin.php
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/admin.php)
+          loc=$(curl -s -o /dev/null -w '%{redirect_url}' http://localhost:8080/admin.php)
+          echo "HTTP $code -> $loc"
+          [ "$code" = "302" ] && [[ "$loc" == *login.php ]]
+
+      - name: adminRegister only creates pending accounts (even if role=admin is sent)
+        run: |
+          curl -s -X POST -d "firstname=CI&lastname=Bot&email=ci@test.com&password=Password123&role=admin" http://localhost:8080/adminRegister.php > /dev/null
+          role=$(docker compose exec -T database mysql -N -ulab_user -puserpassword456 lab_db -e "SELECT Role FROM users WHERE Email='ci@test.com';")
+          echo "Role = $role"
+          [ "$role" = "pending" ]
+
+      - name: Show container logs if anything failed
+        if: failure()
+        run: docker compose logs
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
