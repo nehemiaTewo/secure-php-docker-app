@@ -16,6 +16,12 @@ jobs:
         run: |
           for f in www/*.php; do php -l "$f"; done
 
+      - name: Install PHPUnit
+        run: composer install --no-interaction --no-progress
+
+      - name: Run unit tests
+        run: vendor/bin/phpunit --testdox tests
+
       - name: Create CI .env (real one is never committed)
         run: |
           cat > .env <<'EOF'
@@ -55,15 +61,4 @@ jobs:
 
       - name: adminRegister only creates pending accounts (even if role=admin is sent)
         run: |
-          curl -s -X POST -d "firstname=CI&lastname=Bot&email=ci@test.com&password=Password123&role=admin" http://localhost:8080/adminRegister.php > /dev/null
-          role=$(docker compose exec -T database mysql -N -ulab_user -puserpassword456 lab_db -e "SELECT Role FROM users WHERE Email='ci@test.com';")
-          echo "Role = $role"
-          [ "$role" = "pending" ]
-
-      - name: Show container logs if anything failed
-        if: failure()
-        run: docker compose logs
-
-      - name: Tear down
-        if: always()
-        run: docker compose down -v
+          curl -s -X POST -d "firstname=CI&lastname=Bot&email=ci@test.com

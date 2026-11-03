@@ -1,14 +1,13 @@
 <?php
 require 'db.php';
+require 'auth.php';
 
 // RBAC: only logged-in users whose Role is 'admin' may view this page
 if (!isset($_SESSION['userID'])) {
     header("Location: login.php");
     exit;
 }
-$roleCheck = $pdo->prepare("SELECT Role FROM users WHERE userID = ?");
-$roleCheck->execute([$_SESSION['userID']]);
-if ($roleCheck->fetchColumn() !== 'admin') {
+if (!canAccessAdmin($pdo, $_SESSION['userID'])) {
     http_response_code(403);
     die("<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width, initial-scale=1'><link href='https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css' rel='stylesheet'></head><body class='bg-light'><div class='container py-5'><div class='alert alert-danger text-center'><h2 class='h4'>403: Access Denied</h2><p class='mb-0'>Only approved admins can view this page.</p></div></div></body></html>");
 }
@@ -17,12 +16,12 @@ if ($roleCheck->fetchColumn() !== 'admin') {
 $notice = "";
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'], $_POST['user_id'])) {
     $targetId = (int) $_POST['user_id'];
-    $newRoles = ['approve' => 'admin', 'reject' => 'user', 'revoke' => 'user'];
+    $newRole = newRoleFor($_POST['action'], $targetId, (int) $_SESSION['userID']);
     if ($targetId === (int) $_SESSION['userID']) {
         $notice = "<div class='alert alert-danger'>You can't change your own role.</div>";
-    } elseif (isset($newRoles[$_POST['action']])) {
+    } elseif ($newRole !== null) {
         $update = $pdo->prepare("UPDATE users SET Role = ? WHERE userID = ?");
-        $update->execute([$newRoles[$_POST['action']], $targetId]);
+        $update->execute([$newRole, $targetId]);
         $notice = "<div class='alert alert-success'>User #{$targetId} updated: " . htmlspecialchars($_POST['action']) . ".</div>";
     }
 }
