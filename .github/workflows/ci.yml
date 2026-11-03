@@ -61,4 +61,13 @@ jobs:
 
       - name: adminRegister only creates pending accounts (even if role=admin is sent)
         run: |
-          curl -s -X POST -d "firstname=CI&lastname=Bot&email=ci@test.com
+          curl -s -X POST \
+            -d "firstname=CI" \
+            -d "lastname=Bot" \
+            -d "email=ci@test.com" \
+            -d "password=Password123" \
+            -d "role=admin" \
+            http://localhost:8080/adminRegister.php > /dev/null
+          role=$(docker compose exec -T database mysql -N -ulab_user -puserpassword456 lab_db -e "SELECT Role FROM users WHERE Email='ci@test.com';")
+          echo "Role = $role"
+          [ "$role" = "pending" ]
