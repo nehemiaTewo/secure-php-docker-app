@@ -39,6 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="card shadow-sm">
         <div class="card-body p-4">
           <h2 class="h4 mb-4">Account Sign-In Terminal</h2>
+          <p class="text-body-secondary small">Lab 4 · Cloud-Ready RBAC</p>
           <?php echo $message; ?>
           <form method="POST">
             <div class="mb-3">
